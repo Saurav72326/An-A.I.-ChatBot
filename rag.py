@@ -12,8 +12,7 @@ _retriever = None
 
 
 def build_retriever(pdf_path: str = None, k: int = 4):
-    """Load a PDF, split it into chunks, embed them, and build a FAISS
-    retriever. Returns None if no valid PDF is available."""
+   
     global _retriever
 
     path = pdf_path or PDF_PATH
@@ -44,9 +43,7 @@ def format_docs(docs) -> str:
 
 @tool
 def search_document(query: str) -> str:
-    """Search the loaded reference document (e.g. a resume or report) for
-    information relevant to the query. Use this when the user's question
-    might be answered by the uploaded document."""
+  
     if _retriever is None:
         return (
             "No document is currently loaded. Set PDF_PATH in your .env file "
