@@ -12,11 +12,30 @@ def run_agent(agent, prompt: str, user_id: int) -> str:
         f"Conversation so far:\n{history}\n\n"
         f"Respond to the latest user message above."
     )
+def run_agent(agent, prompt: str, user_id: int) -> str:
+    save_message(user_id, "user", prompt)
+    history = format_history(user_id, limit=20)
+
+    contextual_prompt = (
+        f"Conversation so far:\n{history}\n\n"
+        f"Respond to the latest user message above."
+    )
 
     response = agent.invoke({"messages": [("user", contextual_prompt)]})
+
     reply = response["messages"][-1].content
 
+    if isinstance(reply, list):
+        text = ""
+        for item in reply:
+            if isinstance(item, dict):
+                text += item.get("text", "")
+        reply = text
+    elif not isinstance(reply, str):
+        reply = str(reply)
+
     save_message(user_id, "assistant", reply)
+
     return reply
 
 
