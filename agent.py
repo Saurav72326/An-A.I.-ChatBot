@@ -17,7 +17,7 @@ SYSTEM_PROMPT = (
 def build_agent():
     llm = ChatGoogleGenerativeAI(
     google_api_key=API_KEY,
-    model="gemini-2.0-flash"
+    model="gemini-flash-latest"
 )
     tools = BASIC_TOOLS + [search_document]
     agent = create_agent(model=llm, tools=tools, system_prompt=SYSTEM_PROMPT)
