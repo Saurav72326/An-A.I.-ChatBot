@@ -40,16 +40,20 @@ def format_docs(docs) -> str:
    
     return "\n\n".join(doc.page_content for doc in docs)
 
-
 @tool
 def search_document(query: str) -> str:
-  
+    """Search the loaded reference document for information relevant to the query."""
+
     if _retriever is None:
         return (
-            "No document is currently loaded. Set PDF_PATH in your .env file "
-            "and restart to enable document search."
+            "No document is currently loaded. Set PDF_PATH and restart "
+            "to enable document search."
         )
+
     results = _retriever.invoke(query)
+
     if not results:
         return "No relevant information was found in the document."
+
     return format_docs(results)
+
