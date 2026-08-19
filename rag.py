@@ -6,33 +6,36 @@ from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.tools import tool
 
-from config import API_KEY, EMBEDDING_MODEL, PDF_PATH
+from config import API_KEY, EMBEDDING_MODEL
 
 
 _retriever = None
 
 
-def build_retriever(pdf_path=None, k=4):
+def build_retriever(pdf_path: str, k: int = 4):
 
     global _retriever
 
-    path = pdf_path or PDF_PATH
+    if not pdf_path or not os.path.exists(pdf_path):
+        raise FileNotFoundError(
+            f"PDF file not found: {pdf_path}"
+        )
 
-    if not path or not os.path.exists(path):
-        print("PDF file not found:", path)
-        return None
+    print("Using embedding model:", EMBEDDING_MODEL)
 
-    print("Loading PDF:", path)
+    loader = PyPDFLoader(pdf_path)
 
-    loader = PyPDFLoader(path)
-    documents = loader.load()
+    docs = loader.load()
+
+    if not docs:
+        raise ValueError("Could not extract text from the PDF.")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=500,
         chunk_overlap=100
     )
 
-    splits = splitter.split_documents(documents)
+    splits = splitter.split_documents(docs)
 
     embeddings = GoogleGenerativeAIEmbeddings(
         model=EMBEDDING_MODEL,
@@ -48,8 +51,6 @@ def build_retriever(pdf_path=None, k=4):
         search_kwargs={"k": k}
     )
 
-    print("PDF processed successfully.")
-
     return _retriever
 
 
@@ -63,19 +64,14 @@ def format_docs(docs):
 
 @tool
 def search_document(query: str) -> str:
-    """Search the currently uploaded PDF document for information relevant to the user's question."""
-
-    global _retriever
+    """Search the currently uploaded PDF document."""
 
     if _retriever is None:
-        return (
-            "No PDF document is currently loaded. "
-            "Please upload a PDF first."
-        )
+        return "No PDF document has been uploaded yet."
 
     results = _retriever.invoke(query)
 
     if not results:
-        return "No relevant information was found in the uploaded PDF."
+        return "No relevant information was found in the PDF."
 
     return format_docs(results)
