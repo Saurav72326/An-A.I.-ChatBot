@@ -625,83 +625,69 @@ def index():
 # ==========================================
 
 @app.route("/upload", methods=["POST"])
-def upload_pdf():
-
-    # Check if a file was sent
-    if "file" not in request.files:
-
-        return jsonify({
-            "error": "No file uploaded"
-        }), 400
-
-
-    file = request.files["file"]
-
-
-    # Check filename
-    if file.filename == "":
-
-        return jsonify({
-            "error": "No file selected"
-        }), 400
-
-
-    # Only allow PDF
-    if not file.filename.lower().endswith(".pdf"):
-
-        return jsonify({
-            "error": "Only PDF files are allowed"
-        }), 400
-
-
-    # Make filename safe
-    filename = secure_filename(file.filename)
-
-
-    # Full path
-    pdf_path = os.path.join(
-        app.config["UPLOAD_FOLDER"],
-        filename
-    )
-
+def upload():
 
     try:
 
-        # Save PDF
+        if "file" not in request.files:
+            return jsonify({
+                "error": "No file selected."
+            }), 400
+
+        file = request.files["file"]
+
+        if file.filename == "":
+            return jsonify({
+                "error": "No file selected."
+            }), 400
+
+        if not file.filename.lower().endswith(".pdf"):
+            return jsonify({
+                "error": "Only PDF files are allowed."
+            }), 400
+
+        upload_folder = "uploads"
+
+        os.makedirs(upload_folder, exist_ok=True)
+
+        pdf_path = os.path.join(
+            upload_folder,
+            file.filename
+        )
+
         file.save(pdf_path)
 
-        print(f"PDF saved to: {pdf_path}")
+        print("PDF saved:", pdf_path)
 
-
-        # Build vector database / retriever
         retriever = build_retriever(pdf_path)
 
-
         if retriever is None:
-
             return jsonify({
-                "error": "Could not process the PDF"
+                "error": "Could not process the PDF."
             }), 500
 
-
         return jsonify({
-
-            "message": "PDF uploaded successfully",
-
-            "filename": filename
-
-        }), 200
-
+            "success": True,
+            "message": "PDF uploaded successfully!"
+        })
 
     except Exception as e:
 
-        print(
-            "PDF UPLOAD ERROR:",
-            repr(e)
-        )
+        error_message = str(e)
+
+        print("UPLOAD ERROR:", repr(e))
+
+        if "429" in error_message or "RESOURCE_EXHAUSTED" in error_message:
+
+            return jsonify({
+                "error": (
+                    "Gemini API quota exceeded. "
+                    "Please wait a few seconds and upload again."
+                )
+            }), 429
 
         return jsonify({
-            "error": str(e)
+            "error": f"Upload failed: {error_message}"
         }), 500
 
 
@@ -711,83 +697,67 @@ def upload_pdf():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-
     try:
-
         data = request.get_json(force=True)
 
-
-        prompt = (
-            data.get("message")
-            or ""
-        ).strip()
-
+        prompt = (data.get("message") or "").strip()
 
         if not prompt:
-
             return jsonify({
                 "reply": "Please enter a message."
             }), 400
 
-
-        # Get AI agent
         agent = get_agent()
 
-
-        # Ask Gemini / Agent
         response = agent.invoke({
-
             "messages": [
                 ("user", prompt)
             ]
-
         })
 
+        messages = response.get("messages", [])
 
-        # Get response
-        reply = response["messages"][-1].content
+        if not messages:
+            return jsonify({
+                "reply": "The AI did not return a response. Please try again."
+            }), 500
 
+        last_message = messages[-1]
 
-        # Handle Gemini structured response
+        reply = getattr(last_message, "content", "")
+
         if isinstance(reply, list):
+            reply = "".join(
+                item.get("text", "")
+                for item in reply
+                if isinstance(item, dict)
+            )
 
-            parts = []
-
-            for item in reply:
-
-                if isinstance(item, dict):
-
-                    if "text" in item:
-                        parts.append(
-                            str(item["text"])
-                        )
-
-                else:
-
-                    parts.append(
-                        str(item)
-                    )
-
-
-            reply = "".join(parts)
-
+        if not reply:
+            reply = "No response was generated. Please try again."
 
         return jsonify({
             "reply": str(reply)
         })
 
-
     except Exception as e:
 
-        print(
-            "CHAT ERROR:",
-            repr(e)
-        )
+        error_message = str(e)
+
+        print("CHAT ERROR:", repr(e))
+
+        if "429" in error_message or "RESOURCE_EXHAUSTED" in error_message:
+
+            return jsonify({
+                "reply": (
+                    "⚠️ Gemini API quota has been reached. "
+                    "Please wait a few seconds and try again."
+                )
+            }), 429
 
         return jsonify({
-            "reply": "Server error: " + str(e)
+            "reply": f"Server error: {error_message}"
         }), 500
-
 
 # ==========================================
 # HEALTH CHECK
