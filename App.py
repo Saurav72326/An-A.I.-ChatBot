@@ -423,6 +423,11 @@ function log(text, who) {
 """
 
 
+@app.route("/")
+def index():
+    return render_template_string(CHAT_PAGE)
+
+
 @app.route("/chat", methods=["POST"])
 def chat():
     try:
@@ -464,23 +469,9 @@ def chat():
             "reply": f"Server error: {str(e)}"
         }), 500
 
+
 @app.route("/health")
 def health():
-
     return jsonify({
-
         "status": "ok"
-
     })
-
-
-if __name__ == "__main__":
-
-    port = int(
-        os.environ.get("PORT", 5000)
-    )
-
-    app.run(
-        host="0.0.0.0",
-        port=port
-    )
