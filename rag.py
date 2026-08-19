@@ -20,15 +20,10 @@ def build_retriever(pdf_path: str, k: int = 4):
         print("PDF file not found:", pdf_path)
         return None
 
-    print("Loading PDF:", pdf_path)
-
-    # Load PDF
     loader = PyPDFLoader(pdf_path)
+
     docs = loader.load()
 
-    print(f"Loaded {len(docs)} pages")
-
-    # Split PDF into chunks
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=500,
         chunk_overlap=100
@@ -36,21 +31,16 @@ def build_retriever(pdf_path: str, k: int = 4):
 
     splits = splitter.split_documents(docs)
 
-    print(f"Created {len(splits)} chunks")
-
-    # Create Gemini embeddings
     embeddings = GoogleGenerativeAIEmbeddings(
         model=EMBEDDING_MODEL,
         google_api_key=API_KEY
     )
 
-    # Create FAISS vector database
     vector_store = FAISS.from_documents(
         splits,
         embeddings
     )
 
-    # Create retriever
     _retriever = vector_store.as_retriever(
         search_kwargs={"k": k}
     )
@@ -60,9 +50,9 @@ def build_retriever(pdf_path: str, k: int = 4):
     return _retriever
 
 
-def format_docs(docs) -> str:
+def format_docs(docs):
 
-    return "\n\n".join(
+    return "\\n\\n".join(
         doc.page_content
         for doc in docs
     )
@@ -70,19 +60,22 @@ def format_docs(docs) -> str:
 
 @tool
 def search_document(query: str) -> str:
-    """Search the currently uploaded PDF document for relevant information."""
 
-    global _retriever
+    \"\"\"Search the currently uploaded PDF document.\"\"\"
 
     if _retriever is None:
+
         return (
-            "No PDF document is currently uploaded. "
+            "No PDF is currently uploaded. "
             "Please upload a PDF first."
         )
 
     results = _retriever.invoke(query)
 
     if not results:
-        return "No relevant information was found in the uploaded document."
+
+        return (
+            "No relevant information was found."
+        )
 
     return format_docs(results)
