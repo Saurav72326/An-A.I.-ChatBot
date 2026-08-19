@@ -24,6 +24,7 @@ def get_agent():
 
 
 CHAT_PAGE = """
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -67,7 +68,7 @@ body {
 .chat-header {
     background: linear-gradient(135deg, #4f46e5, #7c3aed);
     color: white;
-    padding: 22px 30px;
+    padding: 20px 30px;
     display: flex;
     align-items: center;
     gap: 15px;
@@ -82,7 +83,8 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 24px;
+    font-size: 25px;
+    flex-shrink: 0;
 }
 
 .header-text h2 {
@@ -91,7 +93,7 @@ body {
 
 .header-text p {
     font-size: 13px;
-    opacity: 0.8;
+    opacity: 0.9;
     margin-top: 4px;
 }
 
@@ -101,6 +103,7 @@ body {
     background: rgba(255,255,255,0.2);
     padding: 8px 14px;
     border-radius: 20px;
+    white-space: nowrap;
 }
 
 /* CHAT AREA */
@@ -116,17 +119,42 @@ body {
 
 .welcome {
     text-align: center;
-    margin-top: 80px;
+    margin-top: 60px;
     color: #64748b;
 }
 
 .welcome h2 {
     color: #1e293b;
     margin-bottom: 10px;
+    font-size: 28px;
 }
 
 .welcome p {
     font-size: 15px;
+    line-height: 1.6;
+}
+
+/* PDF DOCUMENT NOTICE */
+
+.document-notice {
+    max-width: 500px;
+    margin: 30px auto;
+    padding: 16px 20px;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 14px;
+    color: #3730a3;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.document-notice .icon {
+    font-size: 25px;
+    margin-bottom: 8px;
+}
+
+.document-notice b {
+    color: #4f46e5;
 }
 
 /* MESSAGES */
@@ -151,6 +179,7 @@ body {
     font-size: 15px;
     line-height: 1.5;
     word-wrap: break-word;
+    white-space: pre-wrap;
 }
 
 .user .bubble {
@@ -164,6 +193,23 @@ body {
     color: #1e293b;
     border: 1px solid #e2e8f0;
     border-bottom-left-radius: 5px;
+}
+
+/* TYPING INDICATOR */
+
+.typing {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 18px;
+}
+
+.typing-bubble {
+    background: white;
+    border: 1px solid #e2e8f0;
+    padding: 14px 18px;
+    border-radius: 18px;
+    border-bottom-left-radius: 5px;
+    color: #64748b;
 }
 
 /* INPUT AREA */
@@ -187,6 +233,7 @@ body {
 
 .input-area input:focus {
     border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
 }
 
 .send-btn {
@@ -201,17 +248,22 @@ body {
 }
 
 .send-btn:hover {
-    transform: scale(1.05);
+    transform: scale(1.04);
 }
 
 .send-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
 }
 
 /* MOBILE */
 
 @media(max-width: 600px) {
+
+    body {
+        align-items: stretch;
+    }
 
     .chat-container {
         height: 100vh;
@@ -228,6 +280,18 @@ body {
         max-width: 85%;
     }
 
+    .chat-header {
+        padding: 16px;
+    }
+
+    .input-area {
+        padding: 12px;
+    }
+
+    .send-btn {
+        padding: 0 16px;
+    }
+
 }
 
 </style>
@@ -239,6 +303,8 @@ body {
 
 <div class="chat-container">
 
+    <!-- HEADER -->
+
     <div class="chat-header">
 
         <div class="bot-icon">
@@ -246,8 +312,11 @@ body {
         </div>
 
         <div class="header-text">
+
             <h2>AI Chatbot</h2>
+
             <p>Powered by Gemini AI</p>
+
         </div>
 
         <div class="status">
@@ -256,6 +325,8 @@ body {
 
     </div>
 
+
+    <!-- CHAT AREA -->
 
     <div class="chat-box" id="log">
 
@@ -268,10 +339,27 @@ body {
                 Ask me anything and I'll do my best to help.
             </p>
 
+            <div class="document-notice">
+
+                <div class="icon">
+                    📄
+                </div>
+
+                <b>Document Question Answering</b>
+
+                <br><br>
+
+                Set <b>PDF_PATH</b> and ask a question answered
+                within the document.
+
+            </div>
+
         </div>
 
     </div>
 
+
+    <!-- INPUT AREA -->
 
     <div class="input-area">
 
@@ -302,7 +390,9 @@ const input = document.getElementById('msg');
 input.addEventListener('keypress', function(event) {
 
     if (event.key === 'Enter') {
+
         send();
+
     }
 
 });
@@ -318,7 +408,9 @@ async function send() {
     const welcome = document.getElementById('welcome');
 
     if (welcome) {
+
         welcome.remove();
+
     }
 
 
@@ -334,6 +426,9 @@ async function send() {
     button.innerText = 'Thinking...';
 
 
+    showTyping();
+
+
     try {
 
         const res = await fetch('/chat', {
@@ -341,18 +436,26 @@ async function send() {
             method: 'POST',
 
             headers: {
+
                 'Content-Type': 'application/json'
+
             },
 
             body: JSON.stringify({
+
                 message: text,
+
                 user_id: 1
+
             })
 
         });
 
 
         const data = await res.json();
+
+
+        removeTyping();
 
 
         if (data.reply) {
@@ -362,8 +465,11 @@ async function send() {
         } else {
 
             log(
+
                 data.error || 'Sorry, something went wrong.',
+
                 'bot'
+
             );
 
         }
@@ -371,9 +477,14 @@ async function send() {
 
     } catch (error) {
 
+        removeTyping();
+
         log(
+
             '⚠️ Unable to connect to the chatbot server.',
+
             'bot'
+
         );
 
     }
@@ -387,6 +498,8 @@ async function send() {
 
 }
 
+
+/* ADD MESSAGE */
 
 function log(text, who) {
 
@@ -415,12 +528,57 @@ function log(text, who) {
 
 }
 
+
+/* SHOW THINKING MESSAGE */
+
+function showTyping() {
+
+    const chatBox = document.getElementById('log');
+
+
+    const typing = document.createElement('div');
+
+    typing.className = 'typing';
+
+    typing.id = 'typing';
+
+
+    const bubble = document.createElement('div');
+
+    bubble.className = 'typing-bubble';
+
+    bubble.textContent = '🤖 Thinking...';
+
+
+    typing.appendChild(bubble);
+
+    chatBox.appendChild(typing);
+
+
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+}
+
+
+/* REMOVE THINKING MESSAGE */
+
+function removeTyping() {
+
+    const typing = document.getElementById('typing');
+
+    if (typing) {
+
+        typing.remove();
+
+    }
+
+}
+
 </script>
 
 </body>
 
-</html>
-"""
+</html>"""
 
 
 @app.route("/")
