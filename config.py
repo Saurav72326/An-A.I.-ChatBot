@@ -7,7 +7,7 @@ API_KEY = os.getenv("API_KEY")
 
 if not API_KEY:
     raise EnvironmentError(
-        "API_KEY not found. Add your Google API key to the .env file."
+        "API_KEY not found."
     )
 
 LLM_MODEL = os.getenv(
@@ -15,10 +15,7 @@ LLM_MODEL = os.getenv(
     "gemini-flash-latest"
 )
 
-EMBEDDING_MODEL = os.getenv(
-    "EMBEDDING_MODEL",
-    "models/gemini-embedding-001"
-)
+EMBEDDING_MODEL = "models/gemini-embedding-001"
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
