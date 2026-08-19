@@ -1,33 +1,41 @@
 import os
-from werkzeug.utils import secure_filename
 
-from flask import (
-    Flask,
-    request,
-    jsonify,
-    render_template_string
-)
+from flask import Flask, request, jsonify, render_template_string
+from werkzeug.utils import secure_filename
 
 from agent import build_agent
 from rag import build_retriever
 
 
+# ==========================================
+# FLASK APP
+# ==========================================
+
 app = Flask(__name__)
 
+# Maximum upload size: 20 MB
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
-# Folder where uploaded PDFs will be stored
-UPLOAD_FOLDER = "uploads"
+# Folder for uploaded PDFs
+UPLOAD_FOLDER = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "uploads"
+)
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+# Create uploads folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+
+# ==========================================
+# GLOBAL AGENT
+# ==========================================
 
 _agent = None
 
 
 def get_agent():
-
     global _agent
 
     if _agent is None:
@@ -36,13 +44,12 @@ def get_agent():
     return _agent
 
 
-# -------------------------------
+# ==========================================
 # HTML PAGE
-# -------------------------------
+# ==========================================
 
 CHAT_PAGE = """
 <!DOCTYPE html>
-
 <html lang="en">
 
 <head>
@@ -79,87 +86,74 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }
 
+/* HEADER */
+
 .chat-header {
-
-    background: linear-gradient(
-        135deg,
-        #4f46e5,
-        #7c3aed
-    );
-
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
     color: white;
-
     padding: 22px 30px;
-
     display: flex;
-
     align-items: center;
-
     gap: 15px;
 }
 
 .bot-icon {
-
     width: 50px;
-
     height: 50px;
-
     background: white;
-
     border-radius: 50%;
-
     display: flex;
-
     justify-content: center;
-
     align-items: center;
-
     font-size: 25px;
 }
 
 .header-text h2 {
-    font-size: 22px;
+    font-size: 24px;
 }
 
 .header-text p {
+    font-size: 14px;
     opacity: 0.8;
-    margin-top: 5px;
+    margin-top: 4px;
 }
 
 .status {
-
     margin-left: auto;
-
-    background: rgba(255,255,255,0.2);
-
+    background: rgba(255, 255, 255, 0.2);
     padding: 8px 15px;
-
     border-radius: 20px;
 }
-
 
 /* CHAT AREA */
 
 .chat-box {
-
     flex: 1;
-
     padding: 25px;
-
     overflow-y: auto;
-
     background: #f8fafc;
 }
 
+/* WELCOME */
+
+.welcome {
+    text-align: center;
+    margin-top: 80px;
+    color: #64748b;
+}
+
+.welcome h2 {
+    color: #1e293b;
+    margin-bottom: 10px;
+}
 
 /* MESSAGES */
 
 .message {
-
     display: flex;
-
     margin-bottom: 18px;
 }
 
@@ -172,70 +166,45 @@ body {
 }
 
 .bubble {
-
     max-width: 70%;
-
     padding: 14px 18px;
-
     border-radius: 18px;
-
     font-size: 16px;
-
     line-height: 1.5;
-
     white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .user .bubble {
-
-    background: linear-gradient(
-        135deg,
-        #4f46e5,
-        #7c3aed
-    );
-
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
     color: white;
+    border-bottom-right-radius: 5px;
 }
 
 .bot .bubble {
-
     background: white;
-
-    border: 1px solid #e2e8f0;
-
     color: #1e293b;
+    border: 1px solid #e2e8f0;
+    border-bottom-left-radius: 5px;
 }
-
 
 /* UPLOAD AREA */
 
 .upload-area {
-
     padding: 10px 20px;
-
     background: #f8fafc;
-
     border-top: 1px solid #e2e8f0;
 }
 
 .upload-label {
-
     display: flex;
-
     align-items: center;
-
     gap: 10px;
-
-    padding: 12px;
-
+    padding: 12px 15px;
     background: #eef2ff;
-
-    border-radius: 10px;
-
+    border-radius: 12px;
     cursor: pointer;
-
     color: #4f46e5;
-
     font-weight: bold;
 }
 
@@ -248,71 +217,70 @@ body {
 }
 
 .file-name {
-
     margin-top: 8px;
-
     font-size: 14px;
-
     color: #475569;
 }
-
 
 /* INPUT AREA */
 
 .input-area {
-
     padding: 20px;
-
     background: white;
-
     border-top: 1px solid #e2e8f0;
-
     display: flex;
-
     gap: 12px;
 }
 
 .input-area input {
-
     flex: 1;
-
     padding: 15px 18px;
-
     border: 1px solid #cbd5e1;
-
     border-radius: 12px;
-
     outline: none;
+    font-size: 16px;
+}
 
-    font-size: 15px;
+.input-area input:focus {
+    border-color: #4f46e5;
 }
 
 .send-btn {
-
     border: none;
-
-    background: linear-gradient(
-        135deg,
-        #4f46e5,
-        #7c3aed
-    );
-
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
     color: white;
-
     padding: 0 25px;
-
     border-radius: 12px;
-
     font-size: 16px;
-
     cursor: pointer;
 }
 
+.send-btn:hover {
+    opacity: 0.9;
+}
+
 .send-btn:disabled {
-
     opacity: 0.6;
-
     cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+
+    .chat-container {
+        width: 100%;
+        max-width: 100%;
+        height: 100vh;
+        border-radius: 0;
+    }
+
+    .bubble {
+        max-width: 85%;
+    }
+
+    .status {
+        display: none;
+    }
+
 }
 
 </style>
@@ -322,357 +290,319 @@ body {
 
 <body>
 
-
 <div class="chat-container">
 
+    <!-- HEADER -->
 
-<div class="chat-header">
+    <div class="chat-header">
 
-    <div class="bot-icon">
-        🤖
+        <div class="bot-icon">
+            🤖
+        </div>
+
+        <div class="header-text">
+            <h2>AI Chatbot</h2>
+            <p>Powered by Gemini AI</p>
+        </div>
+
+        <div class="status">
+            ● Online
+        </div>
+
     </div>
 
-    <div class="header-text">
 
-        <h2>AI Chatbot</h2>
+    <!-- CHAT BOX -->
 
-        <p>Powered by Gemini AI</p>
+    <div class="chat-box" id="log">
+
+        <div class="welcome" id="welcome">
+
+            <h2>Hello! 👋</h2>
+
+            <p>
+                Upload a PDF or ask me anything.
+            </p>
+
+        </div>
 
     </div>
 
-    <div class="status">
-        ● Online
+
+    <!-- PDF UPLOAD -->
+
+    <div class="upload-area">
+
+        <label for="fileInput" class="upload-label">
+
+            📎 Upload PDF
+
+        </label>
+
+        <input
+            type="file"
+            id="fileInput"
+            accept=".pdf"
+        >
+
+        <div
+            class="file-name"
+            id="fileName"
+        ></div>
+
     </div>
 
-</div>
 
+    <!-- MESSAGE INPUT -->
 
-<!-- CHAT -->
+    <div class="input-area">
 
-<div class="chat-box" id="log">
+        <input
+            id="msg"
+            placeholder="Ask anything..."
+            autocomplete="off"
+        >
 
-</div>
+        <button
+            class="send-btn"
+            id="sendBtn"
+            onclick="send()"
+        >
+            Send ➤
+        </button>
 
-
-<!-- PDF UPLOAD -->
-
-<div class="upload-area">
-
-<label for="fileInput" class="upload-label">
-
-📎 Upload PDF
-
-</label>
-
-
-<input
-    type="file"
-    id="fileInput"
-    accept=".pdf"
->
-
-
-<div
-    class="file-name"
-    id="fileName"
->
-</div>
-
-</div>
-
-
-<!-- MESSAGE INPUT -->
-
-<div class="input-area">
-
-<input
-
-    id="msg"
-
-    placeholder="Ask anything..."
-
-    autocomplete="off"
-
->
-
-
-<button
-
-    class="send-btn"
-
-    id="sendBtn"
-
-    onclick="send()"
-
->
-
-Send ➤
-
-</button>
-
-</div>
-
+    </div>
 
 </div>
 
 
 <script>
 
-
-const input =
-document.getElementById("msg");
-
-
-const fileInput =
-document.getElementById("fileInput");
+const input = document.getElementById("msg");
+const fileInput = document.getElementById("fileInput");
+const sendButton = document.getElementById("sendBtn");
 
 
-// -------------------------
-// UPLOAD PDF
-// -------------------------
+/* ======================================
+   ENTER KEY
+====================================== */
 
-fileInput.addEventListener(
-    "change",
-    async function() {
+input.addEventListener("keypress", function(event) {
 
-        const file =
-        fileInput.files[0];
+    if (event.key === "Enter") {
+        send();
+    }
 
-        if (!file) return;
-
-
-        document.getElementById(
-            "fileName"
-        ).innerText =
-        "Uploading: " + file.name;
+});
 
 
-        const formData =
-        new FormData();
+/* ======================================
+   PDF UPLOAD
+====================================== */
+
+fileInput.addEventListener("change", async function() {
+
+    const file = fileInput.files[0];
+
+    if (!file) {
+        return;
+    }
 
 
-        formData.append(
-            "file",
-            file
-        );
+    const fileName = document.getElementById("fileName");
+
+    fileName.innerText = "⏳ Uploading " + file.name + "...";
 
 
-        try {
+    const formData = new FormData();
 
-            const response =
-            await fetch(
-                "/upload",
-                {
-                    method: "POST",
-                    body: formData
-                }
+    formData.append("file", file);
+
+
+    try {
+
+        const response = await fetch("/upload", {
+
+            method: "POST",
+
+            body: formData
+
+        });
+
+
+        const data = await response.json();
+
+
+        if (response.ok) {
+
+            fileName.innerText =
+                "✅ PDF Ready: " + data.filename;
+
+            removeWelcome();
+
+            log(
+                "📄 PDF uploaded successfully! You can now ask questions about this document.",
+                "bot"
             );
 
+        } else {
 
-            const data =
-            await response.json();
-
-
-            if (response.ok) {
-
-                document.getElementById(
-                    "fileName"
-                ).innerText =
-                "✅ PDF Ready: " +
-                data.filename;
-
-
-                log(
-                    "📄 PDF uploaded successfully. You can now ask questions about it.",
-                    "bot"
-                );
-
-            }
-
-            else {
-
-                document.getElementById(
-                    "fileName"
-                ).innerText =
-                "❌ Upload failed";
-
-            }
+            fileName.innerText =
+                "❌ Upload failed: " +
+                (data.error || "Unknown error");
 
         }
 
-        catch (error) {
+    } catch (error) {
 
-            document.getElementById(
-                "fileName"
-            ).innerText =
-            "❌ Unable to upload PDF";
+        console.error(error);
 
-        }
+        fileName.innerText =
+            "❌ Unable to upload PDF.";
 
     }
-);
+
+});
 
 
-// -------------------------
-// SEND MESSAGE
-// -------------------------
-
-input.addEventListener(
-    "keypress",
-    function(event) {
-
-        if (
-            event.key === "Enter"
-        ) {
-
-            send();
-
-        }
-
-    }
-);
-
+/* ======================================
+   SEND MESSAGE
+====================================== */
 
 async function send() {
 
-    const text =
-    input.value.trim();
+    const text = input.value.trim();
+
+    if (!text) {
+        return;
+    }
 
 
-    if (!text) return;
+    removeWelcome();
 
 
-    log(
-        text,
-        "user"
-    );
+    log(text, "user");
 
 
     input.value = "";
 
 
-    const button =
-    document.getElementById(
-        "sendBtn"
-    );
+    sendButton.disabled = true;
 
-
-    button.disabled = true;
-
-    button.innerText =
-    "Thinking...";
+    sendButton.innerText = "Thinking...";
 
 
     try {
 
-        const response =
-        await fetch(
-            "/chat",
-            {
+        const response = await fetch("/chat", {
 
-                method: "POST",
+            method: "POST",
 
-                headers: {
+            headers: {
+                "Content-Type": "application/json"
+            },
 
-                    "Content-Type":
-                    "application/json"
+            body: JSON.stringify({
+                message: text
+            })
 
-                },
-
-                body:
-                JSON.stringify({
-
-                    message: text
-
-                })
-
-            }
-        );
+        });
 
 
-        const data =
-        await response.json();
+        const data = await response.json();
 
+
+        if (data.reply) {
+
+            log(data.reply, "bot");
+
+        } else {
+
+            log(
+                data.error || "Something went wrong.",
+                "bot"
+            );
+
+        }
+
+    } catch (error) {
+
+        console.error(error);
 
         log(
-            data.reply ||
-            "Something went wrong.",
+            "⚠️ Unable to connect to the chatbot server.",
             "bot"
         );
 
     }
 
-    catch (error) {
 
-        log(
-            "⚠️ Unable to connect to server.",
-            "bot"
-        );
+    sendButton.disabled = false;
 
-    }
+    sendButton.innerText = "Send ➤";
 
-
-    button.disabled = false;
-
-    button.innerText =
-    "Send ➤";
+    input.focus();
 
 }
 
 
-function log(
-    text,
-    who
-) {
+/* ======================================
+   REMOVE WELCOME
+====================================== */
+
+function removeWelcome() {
+
+    const welcome =
+        document.getElementById("welcome");
+
+    if (welcome) {
+        welcome.remove();
+    }
+
+}
+
+
+/* ======================================
+   DISPLAY MESSAGE
+====================================== */
+
+function log(text, who) {
 
     const chatBox =
-    document.getElementById(
-        "log"
-    );
+        document.getElementById("log");
 
 
     const message =
-    document.createElement(
-        "div"
-    );
+        document.createElement("div");
 
 
     message.className =
-    "message " + who;
+        "message " + who;
 
 
     const bubble =
-    document.createElement(
-        "div"
-    );
+        document.createElement("div");
 
 
     bubble.className =
-    "bubble";
+        "bubble";
 
 
     bubble.textContent =
-    text;
+        text;
 
 
-    message.appendChild(
-        bubble
-    );
+    message.appendChild(bubble);
 
-
-    chatBox.appendChild(
-        message
-    );
+    chatBox.appendChild(message);
 
 
     chatBox.scrollTop =
-    chatBox.scrollHeight;
+        chatBox.scrollHeight;
 
 }
 
-
 </script>
-
 
 </body>
 
@@ -680,112 +610,87 @@ function log(
 """
 
 
-# -------------------------------
+# ==========================================
 # HOME PAGE
-# -------------------------------
+# ==========================================
 
 @app.route("/")
 def index():
 
-    return render_template_string(
-        CHAT_PAGE
-    )
+    return render_template_string(CHAT_PAGE)
 
 
-# -------------------------------
+# ==========================================
 # PDF UPLOAD
-# -------------------------------
+# ==========================================
 
-@app.route(
-    "/upload",
-    methods=["POST"]
-)
-
+@app.route("/upload", methods=["POST"])
 def upload_pdf():
 
+    # Check if a file was sent
     if "file" not in request.files:
 
         return jsonify({
-
-            "error":
-            "No file uploaded"
-
+            "error": "No file uploaded"
         }), 400
 
 
-    file =
-    request.files["file"]
+    file = request.files["file"]
 
 
+    # Check filename
     if file.filename == "":
 
         return jsonify({
-
-            "error":
-            "No file selected"
-
+            "error": "No file selected"
         }), 400
 
 
-    if not file.filename.lower().endswith(
-        ".pdf"
-    ):
+    # Only allow PDF
+    if not file.filename.lower().endswith(".pdf"):
 
         return jsonify({
-
-            "error":
-            "Only PDF files are allowed"
-
+            "error": "Only PDF files are allowed"
         }), 400
 
 
-    filename =
-    secure_filename(
-        file.filename
-    )
+    # Make filename safe
+    filename = secure_filename(file.filename)
 
 
-    pdf_path =
-    os.path.join(
+    # Full path
+    pdf_path = os.path.join(
         app.config["UPLOAD_FOLDER"],
         filename
     )
 
 
-    # Save uploaded PDF
-    file.save(
-        pdf_path
-    )
-
-
     try:
 
-        # Process PDF and create retriever
-        retriever =
-        build_retriever(
-            pdf_path
-        )
+        # Save PDF
+        file.save(pdf_path)
+
+        print(f"PDF saved to: {pdf_path}")
+
+
+        # Build vector database / retriever
+        retriever = build_retriever(pdf_path)
 
 
         if retriever is None:
 
             return jsonify({
-
-                "error":
-                "Could not process PDF"
-
+                "error": "Could not process the PDF"
             }), 500
 
 
         return jsonify({
 
-            "message":
-            "PDF uploaded successfully",
+            "message": "PDF uploaded successfully",
 
-            "filename":
-            filename
+            "filename": filename
 
-        })
+        }), 200
 
 
     except Exception as e:
@@ -795,36 +700,24 @@ def upload_pdf():
             repr(e)
         )
 
-
         return jsonify({
-
-            "error":
-            str(e)
-
+            "error": str(e)
         }), 500
 
 
-# -------------------------------
-# CHAT
-# -------------------------------
+# ==========================================
+# CHAT ROUTE
+# ==========================================
 
-@app.route(
-    "/chat",
-    methods=["POST"]
-)
-
+@app.route("/chat", methods=["POST"])
 def chat():
 
     try:
 
-        data =
-        request.get_json(
-            force=True
-        )
+        data = request.get_json(force=True)
 
 
-        prompt =
-        (
+        prompt = (
             data.get("message")
             or ""
         ).strip()
@@ -833,65 +726,54 @@ def chat():
         if not prompt:
 
             return jsonify({
-
-                "reply":
-                "Please enter a message."
-
+                "reply": "Please enter a message."
             }), 400
 
 
-        agent =
-        get_agent()
+        # Get AI agent
+        agent = get_agent()
 
 
-        response =
-        agent.invoke({
+        # Ask Gemini / Agent
+        response = agent.invoke({
 
             "messages": [
-
-                (
-                    "user",
-                    prompt
-                )
-
+                ("user", prompt)
             ]
 
         })
 
 
-        reply =
-        response["messages"][-1].content
+        # Get response
+        reply = response["messages"][-1].content
 
 
-        # Fix Gemini list response
-        if isinstance(
-            reply,
-            list
-        ):
+        # Handle Gemini structured response
+        if isinstance(reply, list):
 
-            reply =
-            "".join(
+            parts = []
 
-                item.get(
-                    "text",
-                    ""
-                )
+            for item in reply:
 
-                for item in reply
+                if isinstance(item, dict):
 
-                if isinstance(
-                    item,
-                    dict
-                )
+                    if "text" in item:
+                        parts.append(
+                            str(item["text"])
+                        )
 
-            )
+                else:
+
+                    parts.append(
+                        str(item)
+                    )
+
+
+            reply = "".join(parts)
 
 
         return jsonify({
-
-            "reply":
-            str(reply)
-
+            "reply": str(reply)
         })
 
 
@@ -902,39 +784,30 @@ def chat():
             repr(e)
         )
 
-
         return jsonify({
-
-            "reply":
-            "Server error: " +
-            str(e)
-
+            "reply": "Server error: " + str(e)
         }), 500
 
 
-# -------------------------------
+# ==========================================
 # HEALTH CHECK
-# -------------------------------
+# ==========================================
 
 @app.route("/health")
 def health():
 
     return jsonify({
-
-        "status":
-        "ok"
-
+        "status": "ok"
     })
 
 
-# -------------------------------
+# ==========================================
 # RUN APPLICATION
-# -------------------------------
+# ==========================================
 
 if __name__ == "__main__":
 
-    port =
-    int(
+    port = int(
         os.environ.get(
             "PORT",
             5000
@@ -943,9 +816,7 @@ if __name__ == "__main__":
 
 
     app.run(
-
         host="0.0.0.0",
-
         port=port
-
     )
+    
